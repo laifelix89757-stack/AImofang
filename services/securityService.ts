@@ -1,38 +1,44 @@
-import CryptoJS from 'crypto-js';
 
-// Internal salt/passphrase for browser-side encryption.
-// In a purely frontend app, this obfuscates the key at rest (LocalStorage).
-// This prevents casual snooping or XSS scripts from easily reading "nova_global_api_key" in plain text.
-const INTERNAL_SECRET = "NOVA_AI_SECURE_SALT_v1_8823_HK_2025";
+// A consistent salt for obfuscation. 
+// This provides sufficient security to prevent the key from being read in plain text in the URL or LocalStorage.
+const SALT = "NOVA_AI_ENTERPRISE_2025_SECURE_SALT";
 
 export const securityService = {
   /**
-   * Encrypts a plain text string using AES.
+   * Safe storage key name
+   */
+  STORAGE_KEY: 'nova_secure_vault_key',
+
+  /**
+   * Encrypts/Obfuscates a plain text string using XOR + Base64.
+   * Dependency-free implementation for maximum reliability.
    */
   encrypt: (text: string): string => {
     if (!text) return '';
-    return CryptoJS.AES.encrypt(text, INTERNAL_SECRET).toString();
-  },
-
-  /**
-   * Decrypts an AES encrypted string.
-   * Returns empty string if decryption fails or input is invalid.
-   */
-  decrypt: (cipherText: string): string => {
-    if (!cipherText) return '';
     try {
-      const bytes = CryptoJS.AES.decrypt(cipherText, INTERNAL_SECRET);
-      const originalText = bytes.toString(CryptoJS.enc.Utf8);
-      if (!originalText) return ''; // Decryption failure usually results in empty string here
-      return originalText;
+      const xor = text.split('').map((c, i) => 
+        String.fromCharCode(c.charCodeAt(0) ^ SALT.charCodeAt(i % SALT.length))
+      ).join('');
+      return btoa(xor);
     } catch (e) {
-      console.error("Security: Decryption failed", e);
+      console.error("Encryption error", e);
       return '';
     }
   },
 
   /**
-   * Safe storage key name
+   * Decrypts/De-obfuscates the string.
    */
-  STORAGE_KEY: 'nova_secure_vault_key'
+  decrypt: (cipherText: string): string => {
+    if (!cipherText) return '';
+    try {
+      const xor = atob(cipherText);
+      return xor.split('').map((c, i) => 
+        String.fromCharCode(c.charCodeAt(0) ^ SALT.charCodeAt(i % SALT.length))
+      ).join('');
+    } catch (e) {
+      console.error("Decryption error (key might be corrupted)", e);
+      return '';
+    }
+  }
 };

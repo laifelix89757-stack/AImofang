@@ -13,11 +13,13 @@ const DEFAULT_MODULES: ModuleConfig[] = [
     id: 'concept_design',
     name: '外观概念设计',
     icon: '🎨',
-    description: '通过双图融合（风格+形态）生成创意产品方案。',
+    description: '通过双图融合（形态+风格）生成创意产品方案。',
     model: ModelType.GEMINI_3_PRO_IMAGE,
     inputCount: 2,
-    inputLabels: ['材质风格参考图', '产品形态参考图'],
-    systemInstruction: '你是一位先锋工业设计师。请分析第一张图片的材质与风格，以及第二张图片的产品形态。将第一张图片的风格特征完美迁移到第二张图片的产品结构上，生成一张高质量、写实的产品渲染图。保持透视和光影的自然统一。'
+    // ORDER CHANGED: First image is Shape, Second is Style
+    inputLabels: ['产品形态参考图 (Shape)', '材质风格参考图 (Style)'], 
+    // INSTRUCTION UPDATED: Explicitly map image indices to roles
+    systemInstruction: '你是一位先锋工业设计师。请分析第一张上传图片（Image 1）的产品形态与结构，以及第二张上传图片（Image 2）的材质与风格细节。任务是将第二张图片的风格特征（颜色、材质、光影）完美迁移到第一张图片的产品结构上。保持第一张图的物理形态和透视不变，应用第二张图的视觉风格，生成一张高质量的产品渲染图。'
   },
   {
     id: 'sketch_render',
@@ -80,19 +82,21 @@ const App: React.FC = () => {
     
     if (sharedKey) {
       try {
+        console.log("NOVA AI: Detected setup key, configuring environment...");
         // Store the encrypted key directly
         localStorage.setItem(securityService.STORAGE_KEY, sharedKey);
         // Remove legacy key if exists to ensure clean state
         localStorage.removeItem('nova_global_api_key');
         
-        // Clean the URL so the user doesn't see the long hash
+        // Clean the URL immediately
         const newUrl = window.location.pathname;
         window.history.replaceState({}, document.title, newUrl);
         
-        // Notify user (optional, can be subtle)
-        console.log("NOVA AI: Environment configured successfully via delivery link.");
-        // We trigger a slight delay reload to ensure services pick up the new storage
-        setTimeout(() => window.location.reload(), 100);
+        // Force a reload only if we just set the key, to ensure all components pick it up fresh
+        // but use a tiny timeout to let the storage event settle
+        setTimeout(() => {
+           window.location.reload();
+        }, 100);
       } catch (e) {
         console.error("Failed to apply shared configuration", e);
       }
