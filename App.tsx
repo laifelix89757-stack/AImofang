@@ -5,6 +5,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { LoginScreen } from './components/LoginScreen';
 import { ModuleConfig, ModelType, UserProfile } from './types';
 import { authService } from './services/authService';
+import { securityService } from './services/securityService';
 
 // Default Modules Data (Initial State)
 const DEFAULT_MODULES: ModuleConfig[] = [
@@ -69,9 +70,33 @@ const App: React.FC = () => {
   const [modules, setModules] = useState<ModuleConfig[]>(DEFAULT_MODULES);
   const [activeModuleId, setActiveModuleId] = useState<string>(DEFAULT_MODULES[0].id);
 
-  // Initialize Auth
+  // Initialize Auth & Check for Delivery Link
   useEffect(() => {
     authService.init();
+
+    // Check for Shared Key in URL (Delivery Mode)
+    const params = new URLSearchParams(window.location.search);
+    const sharedKey = params.get('sk'); // sk = setup key
+    
+    if (sharedKey) {
+      try {
+        // Store the encrypted key directly
+        localStorage.setItem(securityService.STORAGE_KEY, sharedKey);
+        // Remove legacy key if exists to ensure clean state
+        localStorage.removeItem('nova_global_api_key');
+        
+        // Clean the URL so the user doesn't see the long hash
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+        
+        // Notify user (optional, can be subtle)
+        console.log("NOVA AI: Environment configured successfully via delivery link.");
+        // We trigger a slight delay reload to ensure services pick up the new storage
+        setTimeout(() => window.location.reload(), 100);
+      } catch (e) {
+        console.error("Failed to apply shared configuration", e);
+      }
+    }
   }, []);
 
   const handleLogin = (userProfile: UserProfile) => {

@@ -16,6 +16,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isEncrypted, setIsEncrypted] = useState(false);
+  
+  // Share Link State
+  const [generatedLink, setGeneratedLink] = useState('');
 
   useEffect(() => {
     // Try to load encrypted key first
@@ -50,6 +53,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
     localStorage.removeItem('nova_global_api_key');
     
     setIsEncrypted(true);
+    setGeneratedLink(''); // Reset link if key changes
     alert('API Key 已通过 AES 高级加密标准加密并安全保存。托管模式已激活。');
   };
 
@@ -58,7 +62,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
     localStorage.removeItem('nova_global_api_key');
     setApiKey('');
     setIsEncrypted(false);
+    setGeneratedLink('');
     alert('全局 API Key 已移除。系统将恢复为开发模式。');
+  };
+
+  const generateDeliveryLink = () => {
+    const encryptedKey = localStorage.getItem(securityService.STORAGE_KEY);
+    if (!encryptedKey) {
+      alert("请先保存 API Key 才能生成交付链接。");
+      return;
+    }
+    
+    // Create the URL. We use encodeURIComponent to ensure special chars in the hash don't break the URL
+    const baseUrl = window.location.origin + window.location.pathname;
+    const link = `${baseUrl}?sk=${encodeURIComponent(encryptedKey)}`;
+    setGeneratedLink(link);
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(generatedLink);
+    alert("交付链接已复制到剪贴板！\n\n发送给用户后，他们打开链接即可直接使用 AI 功能，无需配置 Key。");
   };
 
   return (
@@ -121,6 +144,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
         {/* Global Settings Tab */}
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto space-y-8">
+            
+            {/* Key Configuration Section */}
             <div className={`rounded-xl border p-6 shadow-lg transition-all ${
               isEncrypted 
                 ? 'bg-gray-800 border-green-800/50 shadow-green-900/10' 
@@ -129,12 +154,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
               <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                 <span>{isEncrypted ? '🔐' : '🔑'}</span> 全局 API Key 安全配置
               </h3>
-              
-              <p className="text-sm text-gray-400 mb-4 leading-relaxed">
-                配置 Google Gemini API Key 以激活商用托管模式。
-                <br/>
-                系统将使用 <b>AES-256</b> 算法对您的 Key 进行本地加密存储。普通用户无法读取您的 Key，但可以直接使用 AI 功能。
-              </p>
               
               <div className="space-y-4">
                 <div>
@@ -148,7 +167,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
                       value={apiKey}
                       onChange={(e) => {
                         setApiKey(e.target.value);
-                        setIsEncrypted(false); // Modified, need to save again
+                        setIsEncrypted(false); 
+                        setGeneratedLink('');
                       }}
                       className={`flex-1 bg-gray-900 border rounded-lg p-3 text-sm text-white focus:outline-none font-mono transition-colors ${
                         isEncrypted ? 'border-green-600/50 text-green-300' : 'border-gray-600 focus:border-yellow-500'
@@ -187,12 +207,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
               </div>
             </div>
 
+            {/* Delivery Link Generator Section */}
+            {isEncrypted && (
+              <div className="bg-gradient-to-br from-gray-800 to-blue-900/20 rounded-xl border border-blue-800/30 p-6 shadow-lg">
+                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                  <span>🚀</span> 商用交付链接生成
+                </h3>
+                <p className="text-sm text-gray-400 mb-4">
+                  生成一个包含加密凭证的一次性配置链接。发送此链接给客户，客户打开后将自动完成环境配置，无需手动输入 API Key。
+                </p>
+
+                {!generatedLink ? (
+                   <button 
+                     onClick={generateDeliveryLink}
+                     className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                   >
+                     生成交付链接
+                   </button>
+                ) : (
+                  <div className="space-y-3 animate-fade-in">
+                    <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 font-mono text-xs text-gray-300 break-all">
+                      {generatedLink}
+                    </div>
+                    <button 
+                      onClick={copyLink}
+                      className="w-full bg-green-600 hover:bg-green-500 text-white py-2 rounded-lg font-bold text-sm shadow-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>📋</span> 复制链接发送给客户
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 opacity-75">
               <h3 className="text-lg font-bold text-white mb-2">安全建议</h3>
               <ul className="list-disc pl-5 text-sm text-gray-400 space-y-2">
-                <li>
-                  本系统采用前端 AES 加密存储，可防止本地直接读取，但无法防止拥有源码分析能力的恶意攻击者。
-                </li>
                 <li className="text-yellow-500">
                   <b>至关重要：</b>请务必在 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" className="underline hover:text-yellow-400">Google Cloud Console</a> 中配置 API Key 限制。
                 </li>
