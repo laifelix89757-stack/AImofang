@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { ModuleConfig, ModelType } from '../types';
 import { generateConceptDesign, editImage } from '../services/geminiService';
 import { ImageUploader } from './ImageUploader';
-import { securityService } from '../services/securityService';
 
 interface DesignStudioProps {
   moduleConfig: ModuleConfig;
+  isManagedMode: boolean; // Passed from App to ensure sync
 }
 
-export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
+export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig, isManagedMode }) => {
   const [image1, setImage1] = useState<string | null>(null);
   const [image2, setImage2] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -17,12 +17,8 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // API Key State
-  const [isReadyToGenerate, setIsReadyToGenerate] = useState(false);
-
-  // Helper: Is this a managed environment?
-  // We check this directly from storage to determine UI state
-  const isManagedMode = !!(localStorage.getItem(securityService.STORAGE_KEY) || localStorage.getItem('nova_global_api_key'));
+  // Local User Key State (only used if NOT in managed mode)
+  const [userHasKey, setUserHasKey] = useState(false);
 
   // Reset state when module changes
   useEffect(() => {
@@ -33,20 +29,15 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
     setError(null);
   }, [moduleConfig.id]);
 
-  // Check for Global Key OR IDX Key availability
+  // Check for IDX Key if not managed
   useEffect(() => {
-    const checkAvailability = async () => {
-      // 1. Check Global Secure Key (Managed Mode)
-      if (isManagedMode) {
-        setIsReadyToGenerate(true);
-        return;
-      }
+    if (isManagedMode) return; // Don't care about user key if managed
 
-      // 2. Check IDX Environment Key
+    const checkAvailability = async () => {
       try {
         if ((window as any).aistudio && (window as any).aistudio.hasSelectedApiKey) {
           const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-          setIsReadyToGenerate(hasKey);
+          setUserHasKey(hasKey);
         }
       } catch (e) {
         console.warn("Failed to check API key status", e);
@@ -59,7 +50,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
     try {
       if ((window as any).aistudio && (window as any).aistudio.openSelectKey) {
         await (window as any).aistudio.openSelectKey();
-        setIsReadyToGenerate(true);
+        setUserHasKey(true);
         setError(null);
       }
     } catch (e) {
@@ -71,8 +62,9 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
   const handleGenerate = async () => {
     if (!prompt) return;
     
-    if (!isReadyToGenerate) {
-      setError("系统未配置 API Key。请联系管理员配置全局 Key，或自行连接。");
+    // Strict Gate: If not managed and no user key, block.
+    if (!isManagedMode && !userHasKey) {
+      setError("请先配置您的 API Key。");
       return;
     }
 
@@ -89,10 +81,8 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
 
       // Logic routing based on Model Type
       if (moduleConfig.model === ModelType.GEMINI_2_5_FLASH_IMAGE) {
-        // Flash Image is usually for editing or fast generation
         result = await editImage(image1!, prompt, moduleConfig.systemInstruction);
       } else {
-        // Pro Image handles complex logic
         const images = [];
         if (image1) images.push(image1);
         if (image2) images.push(image2);
@@ -109,14 +99,14 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
     } catch (err: any) {
       const msg = err.message || "图片生成失败。";
       
-      // Handle permission errors
+      // Handle permission errors with specific context
       if (msg.includes("403") || msg.includes("PERMISSION_DENIED") || msg.includes("API key not valid")) {
          if (isManagedMode) {
-           // If managed mode, do NOT show "Configure Key" button, just show error
-           setError("企业授权校验失败 (403)。请联系管理员检查后台 API Key 配置或配额。");
+           // CRITICAL: If managed mode, do NOT ask user for key. Blame the admin.
+           setError("管理员授权验证失败 (403)。原因可能是：1. 管理员 Key 余额不足或无效。 2. 网站域名未添加到 Google Cloud 白名单。请联系管理员。");
          } else {
-           setIsReadyToGenerate(false);
-           setError("权限不足 (403)。请点击下方按钮连接您的 API Key。");
+           setUserHasKey(false);
+           setError("权限不足 (403)。您的 API Key 可能无效或无权访问该模型。");
          }
       } else {
         setError(msg);
@@ -137,7 +127,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
         {isManagedMode && (
           <div className="flex items-center gap-2 bg-green-900/30 border border-green-700/50 px-3 py-1 rounded-full shadow-sm">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-            <span className="text-xs font-semibold text-green-400">企业授权已激活 (Managed)</span>
+            <span className="text-xs font-semibold text-green-400">企业授权已激活</span>
           </div>
         )}
       </div>
@@ -175,18 +165,18 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
             />
           </div>
 
-          {/* Conditional Rendering for API Key Button */}
-          {/* Only show the 'Configure Key' button if NOT in managed mode and NOT ready */}
-          {!isReadyToGenerate && !isManagedMode ? (
-             <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-4 flex flex-col gap-2">
+          {/* Configuration / Action Area */}
+          {/* ONLY show 'Configure Key' if NOT managed and NOT configured */}
+          {!isManagedMode && !userHasKey ? (
+             <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-4 flex flex-col gap-2 animate-fade-in">
                <p className="text-xs text-yellow-200">
-                 使用高级模型需要连接付费项目 API Key。
+                 当前未检测到企业授权。使用高级模型需要连接个人付费 API Key。
                </p>
                <button
                  onClick={handleSelectApiKey}
                  className="w-full py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg font-bold text-sm transition-colors"
                >
-                 配置 API Key
+                 连接我的 API Key
                </button>
              </div>
           ) : (
@@ -204,7 +194,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ moduleConfig }) => {
           )}
           
           {error && (
-            <div className={`p-3 border rounded-lg break-words text-xs ${
+            <div className={`p-3 border rounded-lg break-words text-xs animate-fade-in ${
               isManagedMode ? 'bg-red-900/30 border-red-800 text-red-200' : 'bg-red-900/50 border-red-700 text-red-200'
             }`}>
               {error}

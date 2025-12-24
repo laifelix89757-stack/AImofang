@@ -54,7 +54,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
     
     setIsEncrypted(true);
     setGeneratedLink(''); // Reset link if key changes
-    alert('API Key 已通过 AES 高级加密标准加密并安全保存。托管模式已激活。');
+    alert('API Key 已通过 AES 高级加密标准加密并安全保存。托管模式已激活。\n\n注意：如果您之前生成过链接，请重新生成发送给客户。');
   };
 
   const handleClearKey = () => {
@@ -183,17 +183,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
                     </button>
                   </div>
                 </div>
+                
+                {isEncrypted && (
+                  <p className="text-xs text-yellow-500 bg-yellow-900/20 p-2 rounded">
+                    ⚠️ <b>重要提示：</b>如果您刚刚更新了系统代码，请务必点击下方的“加密并保存配置”按钮重新保存一次 Key，以确保加密算法匹配。
+                  </p>
+                )}
 
                 <div className="flex gap-4 pt-2">
                   <button
                     onClick={handleSaveKey}
                     className={`flex-1 font-bold py-2 rounded-lg shadow-lg transition-transform active:scale-95 text-white ${
                       isEncrypted
-                        ? 'bg-green-700 hover:bg-green-600 cursor-default'
+                        ? 'bg-green-700 hover:bg-green-600'
                         : 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500'
                     }`}
                   >
-                    {isEncrypted ? '配置已加密保存' : '加密并保存配置'}
+                    {isEncrypted ? '刷新配置并保存' : '加密并保存配置'}
                   </button>
                   {apiKey && (
                     <button
@@ -214,7 +220,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
                   <span>🚀</span> 商用交付链接生成
                 </h3>
                 <p className="text-sm text-gray-400 mb-4">
-                  生成一个包含加密凭证的一次性配置链接。发送此链接给客户，客户打开后将自动完成环境配置，无需手动输入 API Key。
+                  生成一个包含加密凭证的一次性配置链接。发送此链接给客户，客户打开后将自动完成环境配置。
                 </p>
 
                 {!generatedLink ? (
@@ -241,14 +247,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ modules, onUpdateModule,
             )}
 
             <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 opacity-75">
-              <h3 className="text-lg font-bold text-white mb-2">安全建议</h3>
+              <h3 className="text-lg font-bold text-white mb-2">Google Cloud 配置排查 (403 错误通用解法)</h3>
               <ul className="list-disc pl-5 text-sm text-gray-400 space-y-2">
-                <li className="text-yellow-500">
-                  <b>至关重要：</b>请务必在 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" className="underline hover:text-yellow-400">Google Cloud Console</a> 中配置 API Key 限制。
+                <li className="text-white">
+                  如果您遇到 403 Permission Denied 错误，请检查 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" className="underline text-blue-400">Google Cloud Credentials</a>。
                 </li>
                 <li>
-                  在 "Application restrictions" 中选择 <b>HTTP referrers (web sites)</b>，并填入您部署后的网站域名（如 <code>https://your-domain.com/*</code>）。
+                  在 "Application restrictions" > "Web sites" 中，必须添加<b>两条</b>规则：
+                  <ul className="list-decimal pl-5 mt-1 text-gray-300">
+                    <li><code>{window.location.origin}</code> (无结尾斜杠或星号)</li>
+                    <li><code>{window.location.origin}/*</code> (带通配符)</li>
+                  </ul>
                 </li>
+                <li>部分浏览器策略要求严格匹配域名，缺少其中一条都可能导致验证失败。</li>
               </ul>
             </div>
           </div>

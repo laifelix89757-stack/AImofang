@@ -4,9 +4,10 @@ import { authService } from '../services/authService';
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile) => void;
+  isLicenseActive?: boolean;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, isLicenseActive }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +43,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px]"></div>
 
-      <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700 p-8 rounded-2xl shadow-2xl w-full max-w-md z-10">
-        <div className="text-center mb-8">
+      <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700 p-8 rounded-2xl shadow-2xl w-full max-w-md z-10 relative overflow-hidden">
+        {isLicenseActive && (
+          <div className="absolute top-0 left-0 w-full bg-green-600/90 text-white text-xs font-bold py-1 text-center shadow-lg">
+            ✓ 企业授权已激活
+          </div>
+        )}
+
+        <div className="text-center mb-8 mt-4">
           <h1 className="text-4xl font-black bg-gradient-to-r from-blue-400 via-purple-400 to-pink-500 bg-clip-text text-transparent mb-2">
             NOVA AI
           </h1>

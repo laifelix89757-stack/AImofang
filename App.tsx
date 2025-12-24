@@ -7,7 +7,7 @@ import { ModuleConfig, ModelType, UserProfile } from './types';
 import { authService } from './services/authService';
 import { securityService } from './services/securityService';
 
-// Default Modules Data (Initial State)
+// Default Modules Data
 const DEFAULT_MODULES: ModuleConfig[] = [
   {
     id: 'concept_design',
@@ -16,9 +16,7 @@ const DEFAULT_MODULES: ModuleConfig[] = [
     description: '通过双图融合（形态+风格）生成创意产品方案。',
     model: ModelType.GEMINI_3_PRO_IMAGE,
     inputCount: 2,
-    // ORDER CHANGED: First image is Shape, Second is Style
     inputLabels: ['产品形态参考图 (Shape)', '材质风格参考图 (Style)'], 
-    // INSTRUCTION UPDATED: Explicitly map image indices to roles
     systemInstruction: '你是一位先锋工业设计师。请分析第一张上传图片（Image 1）的产品形态与结构，以及第二张上传图片（Image 2）的材质与风格细节。任务是将第二张图片的风格特征（颜色、材质、光影）完美迁移到第一张图片的产品结构上。保持第一张图的物理形态和透视不变，应用第二张图的视觉风格，生成一张高质量的产品渲染图。'
   },
   {
@@ -36,7 +34,7 @@ const DEFAULT_MODULES: ModuleConfig[] = [
     name: '方案变款生成',
     icon: '✨',
     description: '基于现有产品图进行CMF变款或细节微调。',
-    model: ModelType.GEMINI_2_5_FLASH_IMAGE, // Fast model for editing
+    model: ModelType.GEMINI_2_5_FLASH_IMAGE, 
     inputCount: 1,
     inputLabels: ['原始效果图'],
     systemInstruction: '你是一位产品CMF专家。请严格遵循用户的指令对上传的图片进行编辑。只修改用户指定的区域或属性（如颜色、材质、背景），保持其他部分不变。输出高质量的图像。'
@@ -68,6 +66,9 @@ const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAdminMode, setIsAdminMode] = useState(false);
   
+  // Environment State
+  const [hasGlobalKey, setHasGlobalKey] = useState(false);
+  
   // App Data State
   const [modules, setModules] = useState<ModuleConfig[]>(DEFAULT_MODULES);
   const [activeModuleId, setActiveModuleId] = useState<string>(DEFAULT_MODULES[0].id);
@@ -76,29 +77,25 @@ const App: React.FC = () => {
   useEffect(() => {
     authService.init();
 
-    // Check for Shared Key in URL (Delivery Mode)
+    // 1. Handle Link Configuration
     const params = new URLSearchParams(window.location.search);
-    const sharedKey = params.get('sk'); // sk = setup key
+    const sharedKey = params.get('sk'); 
     
     if (sharedKey) {
-      try {
-        console.log("NOVA AI: Detected setup key, configuring environment...");
-        // Store the encrypted key directly
-        localStorage.setItem(securityService.STORAGE_KEY, sharedKey);
-        // Remove legacy key if exists to ensure clean state
-        localStorage.removeItem('nova_global_api_key');
-        
-        // Clean the URL immediately
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, newUrl);
-        
-        // Force a reload only if we just set the key, to ensure all components pick it up fresh
-        // but use a tiny timeout to let the storage event settle
-        setTimeout(() => {
-           window.location.reload();
-        }, 100);
-      } catch (e) {
-        console.error("Failed to apply shared configuration", e);
+      console.log("NOVA AI: Detected setup key, configuring environment...");
+      localStorage.setItem(securityService.STORAGE_KEY, sharedKey);
+      localStorage.removeItem('nova_global_api_key');
+      
+      // Clean URL without reload to preserve state in this session
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+      
+      setHasGlobalKey(true);
+    } else {
+      // 2. Check Existing Configuration
+      const existingKey = localStorage.getItem(securityService.STORAGE_KEY) || localStorage.getItem('nova_global_api_key');
+      if (existingKey) {
+        setHasGlobalKey(true);
       }
     }
   }, []);
@@ -115,7 +112,7 @@ const App: React.FC = () => {
   };
 
   if (!user) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onLogin={handleLogin} isLicenseActive={hasGlobalKey} />;
   }
 
   const activeModule = modules.find(m => m.id === activeModuleId) || modules[0];
@@ -128,7 +125,7 @@ const App: React.FC = () => {
         activeModuleId={activeModuleId} 
         onSelectModule={(id) => {
           setActiveModuleId(id);
-          setIsAdminMode(false); // Switch back to user view when selecting a module
+          setIsAdminMode(false); 
         }}
         onOpenAdmin={() => setIsAdminMode(true)}
         onLogout={() => {
@@ -138,7 +135,6 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-gray-950">
-        {/* Top Watermark */}
         <div className="absolute top-0 right-0 p-4 z-0 opacity-10 pointer-events-none select-none">
           <span className="text-8xl font-black text-white">NOVA</span>
         </div>
@@ -152,7 +148,7 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="p-6 h-full">
-              <DesignStudio moduleConfig={activeModule} />
+              <DesignStudio moduleConfig={activeModule} isManagedMode={hasGlobalKey} />
             </div>
           )}
         </div>
