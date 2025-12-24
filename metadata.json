@@ -1,0 +1,5 @@
+{
+  "name": "Nova AI",
+  "description": "专业的系统指令调试工具与工业设计生成平台，集成 Gemini 3 Pro, Nano Banana Pro 及 Banana Flash Image 模型。",
+  "requestFramePermissions": []
+}
